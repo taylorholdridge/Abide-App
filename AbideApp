@@ -1,0 +1,22 @@
+import SwiftUI
+import Firebase
+
+@main
+struct AbideApp: App {
+    // Make AuthViewModel and TabRouter observable objects
+    @StateObject private var authVM = AuthViewModel()
+    @StateObject private var tabRouter = TabRouter()
+
+    init() {
+        FirebaseApp.configure()
+        print("Firebase default app: \(FirebaseApp.app()?.name ?? "not configured")")
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .environmentObject(authVM)     // ✅ inject AuthViewModel
+                .environmentObject(tabRouter)   // ✅ inject TabRouter
+        }
+    }
+}
