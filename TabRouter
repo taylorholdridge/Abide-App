@@ -1,0 +1,17 @@
+//
+//  TabRouter.swift
+//  Abide
+//
+//  Created by Taylor Holdridge on 9/4/25.
+//
+
+import Foundation
+import SwiftUI
+
+enum Tab {
+    case home, mood, trends, bible, settings
+}
+
+class TabRouter: ObservableObject {
+    @Published var selectedTab: Tab = .home
+}
