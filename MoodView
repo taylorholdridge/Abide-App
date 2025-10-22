@@ -1,0 +1,126 @@
+import SwiftUI
+
+struct MoodView: View {
+    @EnvironmentObject var authVM: AuthViewModel
+    @StateObject private var viewModel = MoodViewModel()
+    
+    // Helper function to dismiss keyboard
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
+                                        to: nil, from: nil, for: nil)
+    }
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                
+                // Personalized centered title
+                VStack(spacing: 4) {
+                    Text("How do you feel, \(authVM.user?.displayName ?? "User")?")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .multilineTextAlignment(.center)
+                    
+                    Text(Date(), style: .date)
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top)
+                
+                // Horizontal scroll for moods
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 20) {
+                        ForEach(viewModel.moods.indices, id: \.self) { index in
+                            let mood = viewModel.moods[index]
+                            Text(mood)
+                                .font(.largeTitle)
+                                .padding()
+                                .background(viewModel.selectedMood == mood ? Color.blue.opacity(0.2) : Color.clear)
+                                .cornerRadius(12)
+                                .onTapGesture {
+                                    withAnimation(.spring()) {
+                                        viewModel.selectedMood = mood
+                                    }
+                                }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                
+                // Animated scroll indicator
+                HStack(spacing: 6) {
+                    ForEach(viewModel.moods.indices, id: \.self) { index in
+                        Capsule()
+                            .fill(viewModel.selectedMood == viewModel.moods[index] ? Color.blue : Color.gray.opacity(0.3))
+                            .frame(width: 20, height: 4)
+                            .scaleEffect(viewModel.selectedMood == viewModel.moods[index] ? 1.5 : 1.0)
+                            .animation(.spring(), value: viewModel.selectedMood)
+                    }
+                }
+                .padding(.horizontal)
+                
+                // Journal entry
+                VStack(alignment: .leading) {
+                    Text("Journal Entry")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    TextEditor(text: $viewModel.journalText)
+                        .frame(height: 150)
+                        .padding(8)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        )
+                        // Add Done button above keyboard
+                        .toolbar {
+                            ToolbarItemGroup(placement: .keyboard) {
+                                Spacer()
+                                Button("Done") {
+                                    hideKeyboard()
+                                }
+                            }
+                        }
+                }
+                .padding(.horizontal)
+                
+                // Submit button
+                Button(action: {
+                    guard let userId = authVM.user?.uid else { return }
+                    viewModel.submitEntry(forUser: userId)
+                    hideKeyboard() // dismiss keyboard on submit
+                }) {
+                    Text("Submit")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(viewModel.selectedMood != nil && !viewModel.journalText.isEmpty ? Color.blue : Color.gray)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                }
+                .disabled(viewModel.selectedMood == nil || viewModel.journalText.isEmpty)
+                
+                Spacer()
+            }
+            .padding(.top)
+            .onTapGesture {
+                hideKeyboard() // dismiss when tapping anywhere in the VStack
+            }
+        }
+        .navigationTitle("Mood Journal")
+        .onAppear {
+            if let userId = authVM.user?.uid {
+                viewModel.fetchEntries(forUser: userId)
+            }
+        }
+    }
+}
+
+#Preview {
+    MoodView()
+        .environmentObject(AuthViewModel())
+}
