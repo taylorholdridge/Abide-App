@@ -1,0 +1,47 @@
+import SwiftUI
+
+struct MoodDetailView: View {
+    let entry: MoodEntry
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            
+            // Emoji at top center
+            Text(entry.mood)
+                .font(.system(size: 80))
+            
+            // Date
+            Text(entry.date, style: .date)
+                .font(.headline)
+                .foregroundColor(.gray)
+            
+            // Journal entry as a card with shadow
+            ScrollView {
+                Text(entry.journal)
+                    .font(.body)
+                    .foregroundColor(.primary)
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(16)
+                    .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 4)
+                    .padding(.horizontal)
+            }
+            
+            Spacer()
+        }
+        .padding(.top, 40)
+        .navigationTitle("Mood Entry")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+#Preview {
+    MoodDetailView(entry: MoodEntry(
+        id: "1",
+        userId: "testUser",
+        date: Date(),
+        mood: "😊",
+        journal: "Today I felt really happy! Enjoyed the sunny weather and went for a walk in the park."
+    ))
+}
