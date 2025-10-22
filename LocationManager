@@ -1,0 +1,50 @@
+//
+//  LocationManager.swift
+//  Abide
+//
+//  Created by Taylor Holdridge on 9/9/25.
+//
+
+import Foundation
+import CoreLocation
+
+class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    
+    @Published var location: CLLocation?
+    @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
+    
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        requestPermission()
+    }
+    
+    func requestPermission() {
+        manager.requestWhenInUseAuthorization()
+        manager.startUpdatingLocation()
+    }
+    
+    // MARK: - CLLocationManagerDelegate
+    func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
+        DispatchQueue.main.async {
+            self.authorizationStatus = status
+        }
+        if status == .authorizedWhenInUse || status == .authorizedAlways {
+            manager.startUpdatingLocation()
+        }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let latestLocation = locations.first else { return }
+        DispatchQueue.main.async {
+            self.location = latestLocation
+        }
+        manager.stopUpdatingLocation()
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        print("Failed to get user location:", error.localizedDescription)
+    }
+}
