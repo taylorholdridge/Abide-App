@@ -1,0 +1,85 @@
+//
+//  LoginView.swift
+//  Abide
+//
+//  Created by Taylor Holdridge on 9/9/25.
+//
+import SwiftUI
+
+struct LoginView: View {
+    @EnvironmentObject var authVM: AuthViewModel
+    @EnvironmentObject var tabRouter: TabRouter
+
+    @State private var email: String = ""
+    @State private var password: String = ""
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                Text("Welcome Back")
+                    .font(.largeTitle)
+                    .bold()
+
+                TextField("Email", text: $email)
+                    .textFieldStyle(.roundedBorder)
+                    .keyboardType(.emailAddress)
+                    .autocapitalization(.none)
+
+                SecureField("Password", text: $password)
+                    .textFieldStyle(.roundedBorder)
+
+                if let errorMessage = errorMessage {
+                    Text(errorMessage)
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+
+                // Sign In Button
+                Button(action: {
+                    authVM.signIn(email: email, password: password)
+                }) {
+                    Text("Sign In")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.top)
+
+                // Register Navigation
+                NavigationLink("Register New Account", destination: RegisterView())
+                    .padding(.top)
+
+                // Forgot Password
+                Button("Forgot Password?") {
+                    if email.isEmpty {
+                        errorMessage = "Enter your email to reset password"
+                    } else {
+                        authVM.sendPasswordReset(email: email)
+                        errorMessage = "Password reset email sent if account exists"
+                    }
+                }
+                .padding(.top, 5)
+            }
+            .padding()
+            .onReceive(authVM.$isLoggedIn) { isLoggedIn in
+                // Automatically navigate to Home tab after login
+                if isLoggedIn {
+                    tabRouter.selectedTab = .home
+                }
+            }
+        }
+    }
+}
+
+
+#Preview {
+    LoginView()
+        .environmentObject(AuthViewModel())
+        .environmentObject(TabRouter())
+}
+
+
+#Preview {
+    LoginView()
+}
