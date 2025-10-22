@@ -1,0 +1,91 @@
+//
+//  HomeView.swift
+//  Abide
+//
+//  Created by Taylor Holdridge on 9/4/25.
+//
+
+import SwiftUI
+
+struct HomeView: View {
+    @EnvironmentObject var tabRouter: TabRouter
+    @ObservedObject var viewModel: HomeViewModel
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                
+                // MARK: - Welcome User
+                HStack {
+                    Text("Welcome, \(viewModel.username)!")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                
+                // MARK: - Date + Weather
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("Today")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        Text(Date(), style: .date)
+                            .font(.headline)
+                    }
+                    Spacer()
+                    VStack {
+                        Text("Weather")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        Text(viewModel.weather)
+                            .font(.headline)
+                    }
+                }
+                .padding(.horizontal)
+                
+                // MARK: - Verse of the Day
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Verse of the Day")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text(viewModel.verseOfTheDay)
+                        .font(.body)
+                        .multilineTextAlignment(.leading)
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+                .padding(.horizontal)
+                
+                Spacer()
+                
+                // MARK: - New Entry Button → Mood Tab
+                Button(action: {
+                    tabRouter.selectedTab = .mood
+                }) {
+                    Text("➕ New Entry")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                }
+            }
+            .navigationTitle("Home")
+            .onAppear {
+                viewModel.loadUser()
+                viewModel.fetchVerseOfTheDay()
+                // Weather automatically updates when location is fetched
+            }
+        }
+    }
+}
+
+#Preview {
+    HomeView(viewModel: HomeViewModel())
+        .environmentObject(TabRouter())
+}
