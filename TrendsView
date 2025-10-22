@@ -1,0 +1,378 @@
+import SwiftUI
+import Charts
+import UIKit
+
+struct TrendsView: View {
+    @EnvironmentObject var authVM: AuthViewModel
+    @StateObject private var viewModel = MoodViewModel()
+    
+    @State private var showDeleteAlert = false
+    @State private var entryToDelete: MoodEntry?
+    @State private var pressedEntryID: String? = nil
+    
+    // MARK: - Week / Month View
+    @State private var selectedView: ViewMode = .week
+    @State private var currentWeekStart: Date = Calendar.current.previousSunday(from: Date())
+    @State private var currentMonthStart: Date = Calendar.current.startOfMonth(for: Date())
+    
+    enum ViewMode: String, CaseIterable {
+        case week = "Week"
+        case month = "Month"
+    }
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 24) {
+                    
+                    // MARK: - View Picker
+                    Picker("View Mode", selection: $selectedView) {
+                        ForEach(ViewMode.allCases, id: \.self) { mode in
+                            Text(mode.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                    
+                    // MARK: - Chart Section
+                    if !viewModel.entries.isEmpty || selectedView == .week {
+                        VStack {
+                            if selectedView == .week {
+                                WeekView(currentWeekStart: $currentWeekStart, viewModel: viewModel)
+                                    .frame(height: 360)
+                            } else {
+                                MonthView(currentMonthStart: $currentMonthStart, viewModel: viewModel)
+                                    .frame(height: 360)
+                            }
+                        }
+                        .padding(.horizontal)
+                    } else {
+                        Text("No mood data to display yet.")
+                            .foregroundColor(.gray)
+                            .padding()
+                    }
+                    
+                    // MARK: - Mood Entries List
+                    LazyVStack(spacing: 12) {
+                        ForEach(viewModel.entries) { entry in
+                            NavigationLink(destination: MoodDetailView(entry: entry)) {
+                                HStack(spacing: 16) {
+                                    Text(entry.mood)
+                                        .font(.largeTitle)
+                                    
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(entry.date, style: .date)
+                                            .font(.subheadline)
+                                            .foregroundColor(.gray)
+                                        
+                                        Text(entry.journal)
+                                            .font(.body)
+                                            .foregroundColor(Color.black.opacity(0.8))
+                                            .lineLimit(1)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(.gray)
+                                }
+                                .padding()
+                                .background(Color(.systemGray6))
+                                .cornerRadius(12)
+                                .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+                                .scaleEffect(pressedEntryID == entry.id ? 1.05 : 1.0)
+                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: pressedEntryID)
+                                .onLongPressGesture(minimumDuration: 0.5) {
+                                    entryToDelete = entry
+                                    showDeleteAlert = true
+                                    
+                                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                                    generator.impactOccurred()
+                                } onPressingChanged: { pressing in
+                                    pressedEntryID = pressing ? entry.id : nil
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                .padding(.top)
+            }
+            .navigationTitle("Trends")
+            .onAppear {
+                if let userId = authVM.user?.uid {
+                    viewModel.fetchEntries(forUser: userId)
+                }
+            }
+            .alert(isPresented: $showDeleteAlert) {
+                Alert(
+                    title: Text("Delete Entry"),
+                    message: Text("Are you sure you want to delete this mood entry?"),
+                    primaryButton: .destructive(Text("Delete")) {
+                        if let entry = entryToDelete {
+                            viewModel.deleteEntry(entry)
+                        }
+                    },
+                    secondaryButton: .cancel()
+                )
+            }
+        }
+    }
+}
+
+// MARK: - Week View
+struct WeekView: View {
+    @Binding var currentWeekStart: Date
+    var viewModel: MoodViewModel
+    
+    @State private var selectedEntry: MoodEntry? = nil
+    private let chartHeight: CGFloat = 320
+    
+    private func allDates(for weekStart: Date) -> [Date] {
+        (0..<7).compactMap { Calendar.current.date(byAdding: .day, value: $0, to: weekStart) }
+    }
+    
+    private func chartPoints(for weekStart: Date) -> [(date: Date, entry: MoodEntry)] {
+        let dates = allDates(for: weekStart)
+        var points: [(Date, MoodEntry)] = []
+        for date in dates {
+            let entries = viewModel.entries.filter { Calendar.current.isDate($0.date, inSameDayAs: date) }
+            for entry in entries { points.append((date, entry)) }
+        }
+        return points
+    }
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            TabView(selection: $currentWeekStart) {
+                ForEach(0..<20) { offset in
+                    let weekStart = Calendar.current.date(byAdding: .weekOfYear, value: offset - 10, to: currentWeekStart)!
+                    chartPage(for: weekStart)
+                        .tag(weekStart)
+                        .padding(.horizontal)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .automatic))
+        }
+        .overlay(
+            Group {
+                if let selected = selectedEntry {
+                    MoodDetailPopupView(entry: selected) {
+                        selectedEntry = nil
+                    }
+                    .transition(.scale.combined(with: .opacity))
+                    .zIndex(1)
+                }
+            }
+        )
+    }
+    
+    @ViewBuilder
+    private func chartPage(for weekStart: Date) -> some View {
+        let points = chartPoints(for: weekStart)
+        VStack(spacing: 8) {
+            Text("Week of \(weekStart, format: .dateTime.month().day())")
+                .font(.headline)
+            
+            ZStack {
+                Chart {
+                    ForEach(points, id: \.entry.id) { point in
+                        PointMark(
+                            x: .value("Date", point.date),
+                            y: .value("Mood", point.entry.mood)
+                        )
+                        .foregroundStyle(.blue)
+                        .symbolSize(50)
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks(values: allDates(for: weekStart)) { value in
+                        AxisGridLine()
+                        AxisValueLabel(format: .dateTime.day())
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading, values: viewModel.moods.reversed()) {
+                        AxisGridLine()
+                        AxisValueLabel()
+                    }
+                }
+                .chartYScale(domain: viewModel.moods.reversed())
+                .frame(height: chartHeight)
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+                
+                GeometryReader { geo in
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .gesture(
+                            LongPressGesture(minimumDuration: 0.5)
+                                .onEnded { _ in
+                                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                                    generator.impactOccurred()
+                                    
+                                    if let closest = points.min(by: {
+                                        let x0 = xPosition(for: $0.date, in: geo.size, weekStart: weekStart)
+                                        let x1 = xPosition(for: $1.date, in: geo.size, weekStart: weekStart)
+                                        let midX = geo.size.width / 2
+                                        return abs(x0 - midX) < abs(x1 - midX)
+                                    }) {
+                                        selectedEntry = closest.entry
+                                    }
+                                }
+                        )
+                }
+            }
+        }
+    }
+    
+    private func xPosition(for date: Date, in size: CGSize, weekStart: Date) -> CGFloat {
+        let dates = allDates(for: weekStart)
+        guard let first = dates.first, let last = dates.last else { return 0 }
+        let total = last.timeIntervalSince(first)
+        let offset = date.timeIntervalSince(first)
+        return CGFloat(offset / total) * size.width
+    }
+}
+
+// MARK: - Month View
+struct MonthView: View {
+    @Binding var currentMonthStart: Date
+    var viewModel: MoodViewModel
+    
+    @State private var selectedEntry: MoodEntry? = nil
+    private let chartHeight: CGFloat = 320
+    
+    private func allDates(for monthStart: Date) -> [Date] {
+        let dayRange = Calendar.current.range(of: .day, in: .month, for: monthStart) ?? 1..<31
+        return dayRange.compactMap { day in
+            Calendar.current.date(byAdding: .day, value: day - 1, to: monthStart)
+        }
+    }
+    
+    private func chartPoints(for monthStart: Date) -> [(date: Date, entry: MoodEntry)] {
+        var points: [(Date, MoodEntry)] = []
+        for date in allDates(for: monthStart) {
+            let entries = viewModel.entries.filter { Calendar.current.isDate($0.date, inSameDayAs: date) }
+            for entry in entries { points.append((date, entry)) }
+        }
+        return points
+    }
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            TabView(selection: $currentMonthStart) {
+                ForEach(0..<12) { offset in
+                    let monthStart = Calendar.current.date(byAdding: .month, value: offset - 6, to: currentMonthStart)!
+                    chartPage(for: monthStart)
+                        .tag(monthStart)
+                        .padding(.horizontal)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .automatic))
+        }
+        .overlay(
+            Group {
+                if let selected = selectedEntry {
+                    MoodDetailPopupView(entry: selected) {
+                        selectedEntry = nil
+                    }
+                    .transition(.scale.combined(with: .opacity))
+                    .zIndex(1)
+                }
+            }
+        )
+    }
+    
+    @ViewBuilder
+    private func chartPage(for monthStart: Date) -> some View {
+        let points = chartPoints(for: monthStart)
+        VStack(spacing: 8) {
+            Text(monthStart, format: .dateTime.month(.wide))
+                .font(.headline)
+            
+            ZStack {
+                Chart {
+                    ForEach(points, id: \.entry.id) { point in
+                        PointMark(
+                            x: .value("Date", point.date),
+                            y: .value("Mood", point.entry.mood)
+                        )
+                        .foregroundStyle(.blue)
+                        .symbolSize(50)
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks(values: allDates(for: monthStart)) { value in
+                        AxisGridLine()
+                        AxisValueLabel(format: .dateTime.day())
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading, values: viewModel.moods.reversed()) {
+                        AxisGridLine()
+                        AxisValueLabel()
+                    }
+                }
+                .chartYScale(domain: viewModel.moods.reversed())
+                .frame(height: chartHeight)
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+                
+                GeometryReader { geo in
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .gesture(
+                            LongPressGesture(minimumDuration: 0.5)
+                                .onEnded { _ in
+                                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                                    generator.impactOccurred()
+                                    
+                                    if let closest = points.min(by: {
+                                        let x0 = xPosition(for: $0.date, in: geo.size, monthStart: monthStart)
+                                        let x1 = xPosition(for: $1.date, in: geo.size, monthStart: monthStart)
+                                        let midX = geo.size.width / 2
+                                        return abs(x0 - midX) < abs(x1 - midX)
+                                    }) {
+                                        selectedEntry = closest.entry
+                                    }
+                                }
+                        )
+                }
+            }
+        }
+    }
+    
+    private func xPosition(for date: Date, in size: CGSize, monthStart: Date) -> CGFloat {
+        let dates = allDates(for: monthStart)
+        guard let first = dates.first, let last = dates.last else { return 0 }
+        let total = last.timeIntervalSince(first)
+        let offset = date.timeIntervalSince(first)
+        return CGFloat(offset / total) * size.width
+    }
+}
+
+// MARK: - Helpers
+extension Calendar {
+    func previousSunday(from date: Date) -> Date {
+        let components = dateComponents([.weekday], from: date)
+        let daysToSubtract = (components.weekday ?? 1) - 1
+        return self.date(byAdding: .day, value: -daysToSubtract, to: date)!
+    }
+    
+    func startOfMonth(for date: Date) -> Date {
+        let comps = dateComponents([.year, .month], from: date)
+        return self.date(from: comps)!
+    }
+}
+
+extension MoodViewModel {
+    func entriesFor(date: Date) -> [String] {
+        let startOfDay = Calendar.current.startOfDay(for: date)
+        return entries
+            .filter { Calendar.current.isDate($0.date, inSameDayAs: startOfDay) }
+            .map { $0.mood }
+    }
+}
