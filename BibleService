@@ -1,0 +1,37 @@
+//
+//  BibleService.swift
+//  Abide
+//
+//  Created by Taylor Holdridge on 9/9/25.
+//
+
+import Foundation
+
+struct Verse: Codable {
+    let bookname: String
+    let chapter: String
+    let verse: String
+    let text: String
+}
+
+class BibleService {
+    func fetchVerseOfTheDay(completion: @escaping (String?) -> Void) {
+        guard let url = URL(string: "https://labs.bible.org/api/?passage=votd&type=json") else {
+            completion(nil)
+            return
+        }
+
+        URLSession.shared.dataTask(with: url) { data, _, error in
+            guard let data = data,
+                  error == nil,
+                  let decoded = try? JSONDecoder().decode([Verse].self, from: data),
+                  let firstVerse = decoded.first else {
+                completion(nil)
+                return
+            }
+
+            let verseText = "\(firstVerse.bookname) \(firstVerse.chapter):\(firstVerse.verse) — \(firstVerse.text)"
+            completion(verseText)
+        }.resume()
+    }
+}
