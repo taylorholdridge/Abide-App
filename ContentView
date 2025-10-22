@@ -1,0 +1,65 @@
+//
+//  ContentView.swift
+//  Abide
+//
+//  Created by Taylor Holdridge on 9/3/25.
+//
+
+import SwiftUI
+
+struct ContentView: View {
+    @StateObject var authVM = AuthViewModel()
+    @StateObject var tabRouter = TabRouter()
+
+    var body: some View {
+        Group {
+            if authVM.isLoggedIn {
+                // Main TabView after login
+                TabView(selection: $tabRouter.selectedTab) {
+                    
+                    // Home
+                    HomeView(viewModel: HomeViewModel(authVM: authVM))
+                        .environmentObject(tabRouter)
+                        .environmentObject(authVM)
+                        .tabItem { Label("Home", systemImage: "house") }
+                        .tag(Tab.home)
+                    
+                    // Mood
+                    MoodView()
+                        .environmentObject(tabRouter)
+                        .tabItem { Label("Mood", systemImage: "face.smiling") }
+                        .tag(Tab.mood)
+                    
+                    // Trends & Insights
+                    TrendsView()
+                        .environmentObject(tabRouter)
+                        .tabItem { Label("Trends", systemImage: "chart.line.uptrend.xyaxis") }
+                        .tag(Tab.trends)
+                    
+                    // Bible
+                    BibleView()
+                        .environmentObject(tabRouter)
+                        .tabItem { Label("Bible", systemImage: "book") }
+                        .tag(Tab.bible)
+                    
+                    // Settings
+                    SettingsView()
+                        .environmentObject(tabRouter)
+                        .environmentObject(authVM)
+                        .tabItem { Label("Settings", systemImage: "gear") }
+                        .tag(Tab.settings)
+                }
+            } else {
+                // Login flow if not signed in
+                LoginView()
+                    .environmentObject(authVM)
+                    .environmentObject(tabRouter)
+            }
+        }
+    }
+}
+
+
+#Preview {
+    ContentView()
+}
