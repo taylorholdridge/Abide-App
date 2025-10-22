@@ -1,0 +1,76 @@
+//
+//  HomeViewModel.swift
+//  Abide
+//
+
+import Foundation
+import FirebaseAuth
+import Combine
+import CoreLocation
+
+class HomeViewModel: ObservableObject {
+    @Published var username: String = "Guest"
+    @Published var weather: String = "Loading..."
+    @Published var verseOfTheDay: String = "Loading..."
+
+    private let bibleService = BibleService()
+    private var authVM: AuthViewModel?
+    private var locationManager = LocationManager()
+    
+    // Shared WeatherService instance
+    private let weatherService = WeatherService.shared
+
+    private var cancellables = Set<AnyCancellable>()
+    private var authListenerHandle: AuthStateDidChangeListenerHandle?
+
+    init(authVM: AuthViewModel? = nil) {
+        self.authVM = authVM
+
+        loadUser()
+        fetchVerseOfTheDay()
+
+        // Firebase auth listener
+        authListenerHandle = Auth.auth().addStateDidChangeListener { [weak self] _, _ in
+            self?.loadUser()
+        }
+
+        // Location subscription → fetch weather when location updates
+        locationManager.$location
+            .compactMap { $0 }
+            .sink { [weak self] location in
+                self?.fetchWeather(latitude: location.coordinate.latitude,
+                                   longitude: location.coordinate.longitude)
+            }
+            .store(in: &cancellables)
+    }
+
+    deinit {
+        if let handle = authListenerHandle {
+            Auth.auth().removeStateDidChangeListener(handle)
+        }
+    }
+
+    func loadUser() {
+        if let user = authVM?.user ?? Auth.auth().currentUser {
+            username = user.displayName ?? user.email ?? "User"
+        } else {
+            username = "Guest"
+        }
+    }
+
+    func fetchWeather(latitude: Double, longitude: Double) {
+        weatherService.fetchWeather(latitude: latitude, longitude: longitude) { [weak self] result in
+            DispatchQueue.main.async {
+                self?.weather = result ?? "N/A"
+            }
+        }
+    }
+
+    func fetchVerseOfTheDay() {
+        bibleService.fetchVerseOfTheDay { [weak self] result in
+            DispatchQueue.main.async {
+                self?.verseOfTheDay = result ?? "Unable to load verse."
+            }
+        }
+    }
+}
