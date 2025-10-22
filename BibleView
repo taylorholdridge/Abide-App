@@ -1,0 +1,23 @@
+//
+//  BibleView.swift
+//  Abide
+//
+//  Created by Taylor Holdridge on 9/4/25.
+//
+
+import SwiftUI
+
+struct BibleView: View {
+    var body: some View {
+        VStack {
+            Text("Bible")
+                .font(.largeTitle)
+                .padding()
+            Text("Search verses or see suggestions")
+        }
+    }
+}
+
+#Preview {
+    BibleView()
+}
