@@ -1,0 +1,72 @@
+//
+//  MoodViewModel.swift
+//  Abide
+//
+//  Created by Taylor Holdridge on 9/16/25.
+//
+
+import Foundation
+import FirebaseFirestore
+import Combine
+
+class MoodViewModel: ObservableObject {
+    @Published var entries: [MoodEntry] = []
+    @Published var moods = ["😞","😐","😊","😄","🤩"]
+    @Published var selectedMood: String?
+    @Published var journalText: String = ""
+    
+    private let db = Firestore.firestore()
+    
+
+    
+    // Fetch entries for a specific user
+    func fetchEntries(forUser userId: String) {
+        db.collection("moodEntries")
+            .whereField("userId", isEqualTo: userId)
+            .order(by: "date", descending: true)
+            .addSnapshotListener { [weak self] snapshot, error in
+                guard let documents = snapshot?.documents else {
+                    print("No entries: \(error?.localizedDescription ?? "")")
+                    return
+                }
+                
+                self?.entries = documents.compactMap { doc -> MoodEntry? in
+                    try? doc.data(as: MoodEntry.self)
+                }
+            }
+    }
+    
+    // Submit a new mood entry
+    func submitEntry(forUser userId: String) {
+        guard let selectedMood = selectedMood, !journalText.isEmpty else { return }
+        
+        let newEntry = MoodEntry(
+            userId: userId,
+            date: Date(),
+            mood: selectedMood,
+            journal: journalText
+        )
+        
+        do {
+            _ = try db.collection("moodEntries").addDocument(from: newEntry)
+            // Reset form
+            self.selectedMood = nil
+            self.journalText = ""
+        } catch {
+            print("Error adding mood entry: \(error)")
+        }
+    }
+    
+    // Delete a mood entry
+    func deleteEntry(_ entry: MoodEntry, completion: ((Error?) -> Void)? = nil) {
+        guard let id = entry.id else { return }
+        db.collection("moodEntries").document(id).delete { error in
+            if error == nil {
+                DispatchQueue.main.async {
+                    self.entries.removeAll { $0.id == id }
+                }
+            }
+            completion?(error)
+        }
+    }
+}
